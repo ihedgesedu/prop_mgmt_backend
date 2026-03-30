@@ -53,3 +53,34 @@ def get_properties(bq: bigquery.Client = Depends(get_bq_client)):
 
     properties = [dict(row) for row in results]
     return properties
+
+@app.get("/properties/{property_id}")
+def get_property(property_id: int, bq: bigquery.Client = Depends(get_bq_client)):
+    """
+    Returns a specific property by its ID.
+    """
+    query = f"""
+        SELECT
+            property_id,
+            name,
+            address,
+            city,
+            state,
+            postal_code,
+            property_type,
+            tenant_name,
+            monthly_rent
+        FROM `{PROJECT_ID}.{DATASET}.properties`
+        WHERE property_id = {property_id}
+    """
+
+    try:
+        results = bq.query(query).result()
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database query failed: {str(e)}"
+        )
+    
+    prop = results.to_dataframe().to_dict(orient='records')
+    return prop
