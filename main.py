@@ -139,3 +139,60 @@ def add_income(property_id: int, amount: float, date: str, description: str, bq:
     
     income = [dict(row) for row in results]
     return income
+
+@app.get("/expenses/{property_id}")
+def get_expenses(property_id: int, bq: bigquery.Client = Depends(get_bq_client)):
+    """
+    Returns all expense recoreds for a property
+    """
+
+    query = f"""
+        SELECT
+            expense_id,
+            property_id,
+            amount,
+            date,
+            category,
+            vendor,
+            description
+        FROM `{PROJECT_ID}.{DATASET}.expenses`
+        WHERE property_id = {property_id}
+    """
+
+    try:
+        results = bq.query(query).result()
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database query failed: {str(e)}"
+        )
+    
+    expenses = [dict(row) for row in results]
+    return expenses
+
+@app.post("/expenses/{property_id}")
+def add_expense(property_id: int, amount: float, date: str, category: str, vendor: str, description: str, bq: bigquery.Client = Depends(get_bq_client)):
+    """
+    Creates a new expense record for a property
+    """
+    query = f'''
+        DEClARE new_expense_id INT64;
+        SET new_expense_id = (
+            SELECT MAX(expense_id)
+            FROM `mgmt545-489015.property_mgmt.expenses`
+            ) + 1;
+
+        INSERT INTO `{PROJECT_ID}.{DATASET}.expenses`(expense_id, property_id, amount, date, category, vendor, description)
+        VALUES (new_income_id, {property_id}, {amount}, '{date}','{category}', '{vendor}', '{description}')
+    '''
+
+    try:
+        results = bq.query(query).result()
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database query failed: {str(e)}"
+        )
+    
+    expense = [dict(row) for row in results]
+    return expense
