@@ -12,7 +12,7 @@ DATASET = "property_mgmt"
 # ---------------------------------------------------------------------------
 
 def get_bq_client():
-    client = bigquery.Client()
+    client = bigquery.Client(project=PROJECT_ID)
     try:
         yield client
     finally:
@@ -82,5 +82,60 @@ def get_property(property_id: int, bq: bigquery.Client = Depends(get_bq_client))
             detail=f"Database query failed: {str(e)}"
         )
     
-    prop = results.to_dataframe().to_dict(orient='records')
+    prop = [dict(row) for row in results]
     return prop
+
+
+@app.get("/income/{property_id}")
+def get_income(property_id: int, bq: bigquery.Client = Depends(get_bq_client)):
+    """
+    Returns all income recoreds for a property
+    """
+    query = f"""
+        SELECT
+            income_id,
+            property_id,
+            amount,
+            date,
+            description
+        FROM `{PROJECT_ID}.{DATASET}.income`
+        WHERE property_id = {property_id}
+    """
+    try:
+        results = bq.query(query).result()
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database query failed: {str(e)}"
+        )
+    
+    income = [dict(row) for row in results]
+    return income
+
+@app.post("/income/{property_id}")
+def add_income(property_id: int, amount: float, date: str, description: str, bq: bigquery.Client = Depends(get_bq_client)):
+    """
+    Creates a new income record for a property
+    """
+    
+    query = f'''
+        DEClARE new_income_id INT64;
+        SET new_income_id = (
+            SELECT MAX(income_id)
+            FROM `mgmt545-489015.property_mgmt.income`
+            ) + 1;
+
+        INSERT INTO `{PROJECT_ID}.{DATASET}.income`(income_id, property_id, amount, date, description)
+        VALUES (new_income_id, {property_id}, {amount}, '{date}', '{description}')
+    '''
+
+    try:
+        results = bq.query(query).result()
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database query failed: {str(e)}"
+        )
+    
+    income = [dict(row) for row in results]
+    return income
