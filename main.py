@@ -1,11 +1,28 @@
 from fastapi import FastAPI, Depends, HTTPException, status
 from google.cloud import bigquery
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 
 app = FastAPI()
 
 PROJECT_ID = "mgmt545-489015"
 DATASET = "property_mgmt"
+
+
+class IncomeCreateRequest(BaseModel):
+    property_id: int
+    amount: float
+    date: str
+    description: str
+
+
+class ExpenseCreateRequest(BaseModel):
+    property_id: int
+    amount: float
+    date: str
+    category: str
+    vendor: str
+    description: str
 
 
 # ---------------------------------------------------------------------------
@@ -113,13 +130,13 @@ def get_income(property_id: int, bq: bigquery.Client = Depends(get_bq_client)):
     income = [dict(row) for row in results]
     return income
 
-@app.post("/income/{property_id}")
-def add_income(property_id: int, amount: float, date: str, description: str, bq: bigquery.Client = Depends(get_bq_client)):
+@app.post("/income")
+def add_income(payload: IncomeCreateRequest, bq: bigquery.Client = Depends(get_bq_client)):
     """
     Creates a new income record for a property
     """
     
-    if amount <= 0:
+    if payload.amount <= 0:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Amount cannot be less than or equal to zero"
@@ -134,7 +151,7 @@ def add_income(property_id: int, amount: float, date: str, description: str, bq:
             ) + 1;
 
         INSERT INTO `{PROJECT_ID}.{DATASET}.income`(income_id, property_id, amount, date, description)
-        VALUES (new_income_id, {property_id}, {amount}, '{date}', '{description}')
+        VALUES (new_income_id, {payload.property_id}, {payload.amount}, '{payload.date}', '{payload.description}')
     '''
 
     try:
@@ -178,11 +195,17 @@ def get_expenses(property_id: int, bq: bigquery.Client = Depends(get_bq_client))
     expenses = [dict(row) for row in results]
     return expenses
 
-@app.post("/expenses/{property_id}")
-def add_expense(property_id: int, amount: float, date: str, category: str, vendor: str, description: str, bq: bigquery.Client = Depends(get_bq_client)):
+@app.post("/expenses")
+def add_expense(payload: ExpenseCreateRequest, bq: bigquery.Client = Depends(get_bq_client)):
     """
     Creates a new expense record for a property
     """
+    if payload.amount <= 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Amount cannot be less than or equal to zero"
+        )
+
     query = f'''
         DECLARE new_expense_id INT64;
         SET new_expense_id = (
@@ -191,7 +214,7 @@ def add_expense(property_id: int, amount: float, date: str, category: str, vendo
             ) + 1;
 
         INSERT INTO `{PROJECT_ID}.{DATASET}.expenses`(expense_id, property_id, amount, date, category, vendor, description)
-        VALUES (new_income_id, {property_id}, {amount}, '{date}','{category}', '{vendor}', '{description}')
+        VALUES (new_expense_id, {payload.property_id}, {payload.amount}, '{payload.date}','{payload.category}', '{payload.vendor}', '{payload.description}')
     '''
 
     try:
