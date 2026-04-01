@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Depends, HTTPException, status
 from google.cloud import bigquery
+from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
 
@@ -118,8 +119,15 @@ def add_income(property_id: int, amount: float, date: str, description: str, bq:
     Creates a new income record for a property
     """
     
+    if amount <= 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Amount cannot be less than or equal to zero"
+        )    
+
+
     query = f'''
-        DEClARE new_income_id INT64;
+        DECLARE new_income_id INT64;
         SET new_income_id = (
             SELECT MAX(income_id)
             FROM `mgmt545-489015.property_mgmt.income`
@@ -176,7 +184,7 @@ def add_expense(property_id: int, amount: float, date: str, category: str, vendo
     Creates a new expense record for a property
     """
     query = f'''
-        DEClARE new_expense_id INT64;
+        DECLARE new_expense_id INT64;
         SET new_expense_id = (
             SELECT MAX(expense_id)
             FROM `mgmt545-489015.property_mgmt.expenses`
