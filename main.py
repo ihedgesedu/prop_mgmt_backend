@@ -8,6 +8,12 @@ app = FastAPI()
 PROJECT_ID = "mgmt545-489015"
 DATASET = "property_mgmt"
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],       # accept requests from any origin
+    allow_methods=["GET", "POST"],
+    allow_headers=["*"],       # accept any request headers
+)
 
 class IncomeCreateRequest(BaseModel):
     property_id: int
