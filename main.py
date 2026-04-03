@@ -11,7 +11,7 @@ DATASET = "property_mgmt"
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],       # accept requests from any origin
-    allow_methods=["GET", "POST"],
+    allow_methods=["GET", "POST", "PATCH"],
     allow_headers=["*"],       # accept any request headers
 )
 
@@ -39,6 +39,17 @@ class PropertyCreateRequest(BaseModel):
     property_type: str
     tenant_name: str
     monthly_rent: float
+
+class PropertyUpdateRequest(BaseModel):
+    name: str | None = None
+    address: str | None = None
+    city: str | None = None
+    state: str | None = None
+    postal_code: str | None = None
+    property_type: str | None = None
+    tenant_name: str | None = None
+    monthly_rent: float | None = None
+
 
 
 # ---------------------------------------------------------------------------
@@ -169,6 +180,75 @@ def add_property(payload: PropertyCreateRequest, bq: bigquery.Client = Depends(g
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Database query failed: {str(e)}"
         )
+
+    confirm_query = f'''
+        SELECT * FROM
+        `mgmt545-489015.property_mgmt.properties`
+        WHERE property_id = (
+            SELECT MAX(`property_id`)
+            FROM `mgmt545-489015.property_mgmt.properties`
+        )
+    '''
+
+    try:
+        results = bq.query(confirm_query).result()
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database query failed: {str(e)}"
+        )
+
+    confirmation = [dict(row) for row in results]
+    return confirmation
+
+@app.patch("/properties/{property_id}")
+def update_property(property_id: int, payload: PropertyUpdateRequest, bq: bigquery.Client = Depends(get_bq_client)):
+    """
+    Updates a property in the database.
+    """
+    update_data = payload.model_dump(exclude_unset=True, exclude_none=True)
+    
+    if not update_data:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No data to update"
+        )
+
+    # List comprehension to create set portion of query to only update certain columns
+    set_query = ", ".join([f"{key} = '{value}'" for key, value in update_data.items()])
+    
+    update_query = f'''
+        UPDATE `{PROJECT_ID}.{DATASET}.properties`
+        SET {set_query}
+        WHERE property_id = {property_id}
+    '''
+
+    try:
+        results = bq.query(update_query).result()
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database query failed: {str(e)}"
+        )
+
+    confirm_query = f'''
+        SELECT * 
+        FROM `{PROJECT_ID}.{DATASET}.properties`
+        WHERE property_id = {property_id}
+    '''
+
+    try:
+        confirmation = bq.query(confirm_query).result()
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database query failed: {str(e)}"
+        )
+
+    confirmation = [dict(row) for row in confirmation]
+    return confirmation
+        
+
 
 
 @app.get("/income/{property_id}")
