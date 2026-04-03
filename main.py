@@ -30,6 +30,16 @@ class ExpenseCreateRequest(BaseModel):
     vendor: str
     description: str
 
+class PropertyCreateRequest(BaseModel):
+    name: str
+    address: str
+    city: str
+    state: str
+    postal_code: str
+    property_type: str
+    tenant_name: str
+    monthly_rent: float
+
 
 # ---------------------------------------------------------------------------
 # Dependency: BigQuery client
@@ -110,6 +120,57 @@ def get_property(property_id: int, bq: bigquery.Client = Depends(get_bq_client))
     return prop
 
 
+@app.post("/properties")
+def add_property(payload: PropertyCreateRequest, bq: bigquery.Client = Depends(get_bq_client)):
+    """
+    Creates a new property in the database.
+    """
+    if payload.monthly_rent <= 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Monthly rent cannot be less than or equal to zero"
+        )
+
+    insert_query = f'''
+        DECLARE new_property_id INT64;
+        SET new_property_id = (
+            SELECT MAX(property_id)
+            FROM `mgmt545-489015.property_mgmt.properties`
+            ) + 1;
+
+        INSERT INTO `{PROJECT_ID}.{DATASET}.properties`(
+            property_id,
+            name,
+            address,
+            city,
+            state,
+            postal_code,
+            property_type,
+            tenant_name,
+            monthly_rent
+        )
+        VALUES (
+            new_property_id,
+            '{payload.name}',
+            '{payload.address}',
+            '{payload.city}',
+            '{payload.state}',
+            '{payload.postal_code}',
+            '{payload.property_type}',
+            '{payload.tenant_name}',
+            {payload.monthly_rent}
+        )
+    '''
+
+    try:
+        results = bq.query(insert_query).result()
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database query failed: {str(e)}"
+        )
+
+
 @app.get("/income/{property_id}")
 def get_income(property_id: int, bq: bigquery.Client = Depends(get_bq_client)):
     """
@@ -149,7 +210,7 @@ def add_income(payload: IncomeCreateRequest, bq: bigquery.Client = Depends(get_b
         )    
 
 
-    query = f'''
+    insert_query = f'''
         DECLARE new_income_id INT64;
         SET new_income_id = (
             SELECT MAX(income_id)
@@ -161,15 +222,32 @@ def add_income(payload: IncomeCreateRequest, bq: bigquery.Client = Depends(get_b
     '''
 
     try:
-        results = bq.query(query).result()
+        results = bq.query(insert_query).result()
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Database query failed: {str(e)}"
         )
     
-    income = [dict(row) for row in results]
-    return income
+    confirm_query = f'''
+        SELECT *
+        FROM `{PROJECT_ID}.{DATASET}.income`
+        WHERE income_id = (
+            SELECT MAX(income_id)
+            FROM `mgmt545-489015.property_mgmt.income`
+            )
+    '''
+
+    try:
+        results = bq.query(confirm_query).result() 
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database query failed: {str(e)}"
+        )
+
+    confirmation = [dict(row) for row in results]
+    return confirmation
 
 @app.get("/expenses/{property_id}")
 def get_expenses(property_id: int, bq: bigquery.Client = Depends(get_bq_client)):
@@ -231,5 +309,22 @@ def add_expense(payload: ExpenseCreateRequest, bq: bigquery.Client = Depends(get
             detail=f"Database query failed: {str(e)}"
         )
     
-    expense = [dict(row) for row in results]
-    return expense
+    confirm_query = f'''
+        SELECT *
+        FROM `{PROJECT_ID}.{DATASET}.expenses`
+        WHERE expense_id = (
+            SELECT MAX(expense_id)
+            FROM `mgmt545-489015.property_mgmt.expenses`
+            )
+    '''
+
+    try:
+        results = bq.query(confirm_query).result() 
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database query failed: {str(e)}"
+        )
+
+    confirmation = [dict(row) for row in results]
+    return confirmation
