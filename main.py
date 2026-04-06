@@ -449,8 +449,9 @@ def get_summary(bq: bigquery.Client = Depends(get_bq_client)):
     query = f'''
         SELECT
             (SELECT COUNT(*) FROM `mgmt545-489015.property_mgmt.properties`) AS property_count,
-            (SELECT COUNT(*) FROM `mgmt545-489015.property_mgmt.income`) AS income_count,
-            (SELECT COUNT(*) FROM `mgmt545-489015.property_mgmt.expenses`) AS expense_count
+            (SELECT SUM(amount) FROM `mgmt545-489015.property_mgmt.income`) AS total_income,
+            (SELECT SUM(amount) FROM `mgmt545-489015.property_mgmt.expenses`) AS total_expenses,
+            ((SELECT SUM(amount) FROM `mgmt545-489015.property_mgmt.income`) - (SELECT SUM(amount) FROM `mgmt545-489015.property_mgmt.expenses`)) AS net_income
     '''
 
     try:
