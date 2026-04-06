@@ -108,14 +108,8 @@ def get_property(property_id: int, bq: bigquery.Client = Depends(get_bq_client))
 
     if property_id <= 0:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCCESBLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Property ID cannot be less than or equal to zero. Please enter a positive integer value"
-        )
-
-    if is_integer(property_id) == False:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCCESBLE_ENTITY,
-            detail="Property ID must be an integer value. Please enter a new Property ID"
         )
 
     query = f"""
@@ -158,7 +152,7 @@ def add_property(payload: PropertyCreateRequest, bq: bigquery.Client = Depends(g
 
     if is_integer(payload.monthly_rent) == False and is_float(payload.monthly_rent) == False:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCCESBLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Monthly rent must be an numeric value. Please enter a new Monthly Rent"
         )
 
@@ -335,14 +329,8 @@ def get_income(property_id: int, bq: bigquery.Client = Depends(get_bq_client)):
 
     if property_id <= 0:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCCESBLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Property ID cannot be less than or equal to zero. Please enter a positive integer value"
-        )
-
-    if is_integer(property_id) == False:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCCESBLE_ENTITY,
-            detail="Property ID must be an integer value. Please enter a new Property ID"
         )
 
 
@@ -365,6 +353,11 @@ def get_income(property_id: int, bq: bigquery.Client = Depends(get_bq_client)):
         )
     
     income = [dict(row) for row in results]
+    if income == []:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No income records found for this property"
+)
     return income
 
 @app.post("/income")
@@ -447,6 +440,12 @@ def get_expenses(property_id: int, bq: bigquery.Client = Depends(get_bq_client))
         )
     
     expenses = [dict(row) for row in results]
+    if expenses == []:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No income records found for this property"
+            )
+
     return expenses
 
 @app.post("/expenses")
