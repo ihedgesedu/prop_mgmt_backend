@@ -1,7 +1,8 @@
 from fastapi import FastAPI, Depends, HTTPException, status
 from google.cloud import bigquery
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+from typing import Optional
 
 app = FastAPI()
 
@@ -11,7 +12,7 @@ DATASET = "property_mgmt"
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],       # accept requests from any origin
-    allow_methods=["GET", "POST", "PATCH"],
+    allow_methods=["GET", "POST", "PATCH", "DELETE"],
     allow_headers=["*"],       # accept any request headers
 )
 
@@ -41,14 +42,14 @@ class PropertyCreateRequest(BaseModel):
     monthly_rent: float
 
 class PropertyUpdateRequest(BaseModel):
-    name: str | None = None
-    address: str | None = None
-    city: str | None = None
-    state: str | None = None
-    postal_code: str | None = None
-    property_type: str | None = None
-    tenant_name: str | None = None
-    monthly_rent: float | None = None
+    name: Optional[str] = Field(default = None, example="Crestview Apartments")
+    address: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    postal_code: Optional[str] = None
+    property_type: Optional[str] = None
+    tenant_name: Optional[str] = None
+    monthly_rent: Optional[float] = None
 
 
 
@@ -207,15 +208,27 @@ def update_property(property_id: int, payload: PropertyUpdateRequest, bq: bigque
     Updates a property in the database.
     """
     update_data = payload.model_dump(exclude_unset=True, exclude_none=True)
-    
+                    
     if not update_data:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="No data to update"
-        )
+            )
+
+    query_params = []
+        
+
+    for key, value in update_data.items():
+        # Add the actual value to the parameters list
+        # BigQuery will automatically map Python floats to FLOAT64, etc.
+        query_params.append(bigquery.ScalarQueryParameter(key, None, value))
+    
+    # Add the property_id for the WHERE clause
+    query_params.append(bigquery.ScalarQueryParameter("pid", "INT64", property_id))
+    job_config = bigquery.QueryJobConfig(query_parameters=query_params)
 
     # List comprehension to create set portion of query to only update certain columns
-    set_query = ", ".join([f"{key} = '{value}'" for key, value in update_data.items()])
+    set_query = ", ".join([f"{key} = @{key}" for key, value in update_data.items()])
     
     update_query = f'''
         UPDATE `{PROJECT_ID}.{DATASET}.properties`
@@ -224,7 +237,7 @@ def update_property(property_id: int, payload: PropertyUpdateRequest, bq: bigque
     '''
 
     try:
-        results = bq.query(update_query).result()
+        results = bq.query(update_query, job_config=job_config).result()
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -249,6 +262,25 @@ def update_property(property_id: int, payload: PropertyUpdateRequest, bq: bigque
     return confirmation
         
 
+@app.delete("/properties/{property_id}")
+def delete_property(property_id: int, bq: bigquery.Client = Depends(get_bq_client)):
+    """
+    Deletes a property from the database.
+    """
+    delete_query = f'''
+        DELETE FROM `{PROJECT_ID}.{DATASET}.properties`
+        WHERE property_id = {property_id}
+    '''
+
+    try:
+        results = bq.query(delete_query).result()
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database query failed: {str(e)}"
+        )
+
+    return {"message": "Property deleted successfully"}
 
 
 @app.get("/income/{property_id}")
