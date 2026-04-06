@@ -105,6 +105,19 @@ def get_property(property_id: int, bq: bigquery.Client = Depends(get_bq_client))
     """
     Returns a specific property by its ID.
     """
+
+    if property_id <= 0:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCCESBLE_ENTITY,
+            detail="Property ID cannot be less than or equal to zero. Please enter a positive integer value"
+        )
+
+    if is_integer(property_id) == False:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCCESBLE_ENTITY,
+            detail="Property ID must be an integer value. Please enter a new Property ID"
+        )
+
     query = f"""
         SELECT
             property_id,
@@ -142,6 +155,13 @@ def add_property(payload: PropertyCreateRequest, bq: bigquery.Client = Depends(g
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Monthly rent cannot be less than or equal to zero"
         )
+
+    if is_integer(payload.monthly_rent) == False and is_float(payload.monthly_rent) == False:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCCESBLE_ENTITY,
+            detail="Monthly rent must be an numeric value. Please enter a new Monthly Rent"
+        )
+
 
     insert_query = f'''
         DECLARE new_property_id INT64;
@@ -267,6 +287,30 @@ def delete_property(property_id: int, bq: bigquery.Client = Depends(get_bq_clien
     """
     Deletes a property from the database.
     """
+
+    validation_query = f'''
+        SELECT EXISTS(
+            SELECT 1 
+            FROM `{PROJECT_ID}.{DATASET}.properties` 
+            WHERE property_id = {property_id}
+            ) AS property_exists
+    '''
+
+    try:
+        results = bq.query(validation_query).result()
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database query failed: {str(e)}"
+        )
+
+    if not list(results)[0].property_exists:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Property not found"
+        )
+
+
     delete_query = f'''
         DELETE FROM `{PROJECT_ID}.{DATASET}.properties`
         WHERE property_id = {property_id}
@@ -288,6 +332,20 @@ def get_income(property_id: int, bq: bigquery.Client = Depends(get_bq_client)):
     """
     Returns all income recoreds for a property
     """
+
+    if property_id <= 0:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCCESBLE_ENTITY,
+            detail="Property ID cannot be less than or equal to zero. Please enter a positive integer value"
+        )
+
+    if is_integer(property_id) == False:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCCESBLE_ENTITY,
+            detail="Property ID must be an integer value. Please enter a new Property ID"
+        )
+
+
     query = f"""
         SELECT
             income_id,
