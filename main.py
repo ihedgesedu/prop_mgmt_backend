@@ -218,17 +218,17 @@ def update_property(property_id: int, payload: PropertyUpdateRequest, bq: bigque
     query_params = []
         
 
-    for key, value in update_data.items():
-        # Add the actual value to the parameters list
-        # BigQuery will automatically map Python floats to FLOAT64, etc.
-        query_params.append(bigquery.ScalarQueryParameter(key, None, value))
+    # for key, value in update_data.items():
+    #     # Add the actual value to the parameters list
+    #     # BigQuery will automatically map Python floats to FLOAT64, etc.
+    #     query_params.append(bigquery.ScalarQueryParameter(key, None, value))
     
-    # Add the property_id for the WHERE clause
-    query_params.append(bigquery.ScalarQueryParameter("pid", "INT64", property_id))
-    job_config = bigquery.QueryJobConfig(query_parameters=query_params)
+    # # Add the property_id for the WHERE clause
+    # query_params.append(bigquery.ScalarQueryParameter("pid", "INT64", property_id))
+    # job_config = bigquery.QueryJobConfig(query_parameters=query_params)
 
     # List comprehension to create set portion of query to only update certain columns
-    set_query = ", ".join([f"{key} = @{key}" for key, value in update_data.items()])
+    set_query = ", ".join([f"{key} = '{value}'" for key, value in update_data.items()])
     
     update_query = f'''
         UPDATE `{PROJECT_ID}.{DATASET}.properties`
@@ -237,7 +237,7 @@ def update_property(property_id: int, payload: PropertyUpdateRequest, bq: bigque
     '''
 
     try:
-        results = bq.query(update_query, job_config=job_config).result()
+        results = bq.query(update_query).result()
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -440,3 +440,26 @@ def add_expense(payload: ExpenseCreateRequest, bq: bigquery.Client = Depends(get
 
     confirmation = [dict(row) for row in results]
     return confirmation
+
+@app.get("/summary")
+def get_summary(bq: bigquery.Client = Depends(get_bq_client)):
+    """
+    Provides summary of all properties and tables
+    """
+    query = f'''
+        SELECT
+            (SELECT COUNT(*) FROM `mgmt545-489015.property_mgmt.properties`) AS property_count,
+            (SELECT COUNT(*) FROM `mgmt545-489015.property_mgmt.income`) AS income_count,
+            (SELECT COUNT(*) FROM `mgmt545-489015.property_mgmt.expenses`) AS expense_count
+    '''
+
+    try:
+        results = bq.query(query).result()
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database query failed: {str(e)}"
+        )
+    
+    summary = [dict(row) for row in results]
+    return summary
