@@ -241,8 +241,15 @@ def update_property(property_id: int, payload: PropertyUpdateRequest, bq: bigque
     # query_params.append(bigquery.ScalarQueryParameter("pid", "INT64", property_id))
     # job_config = bigquery.QueryJobConfig(query_parameters=query_params)
 
-    # List comprehension to create set portion of query to only update certain columns
-    set_query = ", ".join([f"{key} = '{value}'" for key, value in update_data.items()])
+    # Keep numeric fields unquoted so BigQuery treats them correctly.
+    numeric_fields = {"monthly_rent"}
+    set_query_parts = []
+    for key, value in update_data.items():
+        if key in numeric_fields:
+            set_query_parts.append(f"{key} = {value}")
+        else:
+            set_query_parts.append(f"{key} = '{value}'")
+    set_query = ", ".join(set_query_parts)
     
     update_query = f'''
         UPDATE `{PROJECT_ID}.{DATASET}.properties`
