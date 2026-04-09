@@ -1,3 +1,4 @@
+from sqlite3 import DatabaseError
 from fastapi import FastAPI, Depends, HTTPException, status
 from google.cloud import bigquery
 from fastapi.middleware.cors import CORSMiddleware
@@ -192,10 +193,10 @@ def add_property(payload: PropertyCreateRequest, bq: bigquery.Client = Depends(g
 
     confirm_query = f'''
         SELECT * FROM
-        `mgmt545-489015.property_mgmt.properties`
+        `{PROJECT_ID}.{DATASET}.properties`
         WHERE property_id = (
             SELECT MAX(`property_id`)
-            FROM `mgmt545-489015.property_mgmt.properties`
+            FROM `{PROJECT_ID}.{DATASET}.properties`
         )
     '''
 
@@ -378,7 +379,7 @@ def add_income(payload: IncomeCreateRequest, bq: bigquery.Client = Depends(get_b
         DECLARE new_income_id INT64;
         SET new_income_id = (
             SELECT MAX(income_id)
-            FROM `mgmt545-489015.property_mgmt.income`
+            FROM `{PROJECT_ID}.{DATASET}.income`
             ) + 1;
 
         INSERT INTO `{PROJECT_ID}.{DATASET}.income`(income_id, property_id, amount, date, description)
@@ -398,7 +399,7 @@ def add_income(payload: IncomeCreateRequest, bq: bigquery.Client = Depends(get_b
         FROM `{PROJECT_ID}.{DATASET}.income`
         WHERE income_id = (
             SELECT MAX(income_id)
-            FROM `mgmt545-489015.property_mgmt.income`
+            FROM `{PROJECT_ID}.{DATASET}.income`
             )
     '''
 
@@ -464,7 +465,7 @@ def add_expense(payload: ExpenseCreateRequest, bq: bigquery.Client = Depends(get
         DECLARE new_expense_id INT64;
         SET new_expense_id = (
             SELECT MAX(expense_id)
-            FROM `mgmt545-489015.property_mgmt.expenses`
+            FROM `{PROJECT_ID}.{DATASET}.expenses`
             ) + 1;
 
         INSERT INTO `{PROJECT_ID}.{DATASET}.expenses`(expense_id, property_id, amount, date, category, vendor, description)
@@ -484,7 +485,7 @@ def add_expense(payload: ExpenseCreateRequest, bq: bigquery.Client = Depends(get
         FROM `{PROJECT_ID}.{DATASET}.expenses`
         WHERE expense_id = (
             SELECT MAX(expense_id)
-            FROM `mgmt545-489015.property_mgmt.expenses`
+            FROM `{PROJECT_ID}.{DATASET}.expenses`
             )
     '''
 
@@ -506,10 +507,10 @@ def get_summary(bq: bigquery.Client = Depends(get_bq_client)):
     """
     query = f'''
         SELECT
-            (SELECT COUNT(*) FROM `mgmt545-489015.property_mgmt.properties`) AS property_count,
-            (SELECT SUM(amount) FROM `mgmt545-489015.property_mgmt.income`) AS total_income,
-            (SELECT SUM(amount) FROM `mgmt545-489015.property_mgmt.expenses`) AS total_expenses,
-            ((SELECT SUM(amount) FROM `mgmt545-489015.property_mgmt.income`) - (SELECT SUM(amount) FROM `mgmt545-489015.property_mgmt.expenses`)) AS net_income
+            (SELECT COUNT(*) FROM `{PROJECT_ID}.{DATASET}.properties`) AS property_count,
+            (SELECT SUM(amount) FROM `{PROJECT_ID}.{DATASET}.income`) AS total_income,
+            (SELECT SUM(amount) FROM `{PROJECT_ID}.{DATASET}.expenses`) AS total_expenses,
+            ((SELECT SUM(amount) FROM `{PROJECT_ID}.{DATASET}.income`) - (SELECT SUM(amount) FROM `{PROJECT_ID}.{DATASET}.expenses`)) AS net_income
     '''
 
     try:
