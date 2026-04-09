@@ -150,12 +150,6 @@ def add_property(payload: PropertyCreateRequest, bq: bigquery.Client = Depends(g
             detail="Monthly rent cannot be less than or equal to zero"
         )
 
-    if is_integer(payload.monthly_rent) == False and is_float(payload.monthly_rent) == False:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Monthly rent must be an numeric value. Please enter a new Monthly Rent"
-        )
-
 
     insert_query = f'''
         DECLARE new_property_id INT64;
