@@ -155,7 +155,7 @@ def add_property(payload: PropertyCreateRequest, bq: bigquery.Client = Depends(g
         DECLARE new_property_id INT64;
         SET new_property_id = (
             SELECT MAX(property_id)
-            FROM `mgmt545-489015.property_mgmt.properties`
+            FROM `{PROJECT_ID}.{DATASET}.properties`
             ) + 1;
 
         INSERT INTO `{PROJECT_ID}.{DATASET}.properties`(
@@ -179,7 +179,7 @@ def add_property(payload: PropertyCreateRequest, bq: bigquery.Client = Depends(g
             '{payload.property_type}',
             '{payload.tenant_name}',
             {payload.monthly_rent}
-        )
+        );
     '''
 
     try:
